@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d0d0d">
+<title>Резервации</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #0d0d0d; --card: #161616; --card2: #1e1e1e; --border: #282828;
+  --gold: #d4a843; --gold-dim: rgba(212,168,67,0.13);
+  --red: #d63031; --red-dim: rgba(214,48,49,0.2); --red-bright: #ff5252;
+  --green: #00b894; --green-dim: rgba(0,184,148,0.15);
+  --sel: rgba(212,168,67,0.35);
+  --text: #f2ede4; --muted: #5a5a5a;
+}
+body { background: var(--bg); color: var(--text); font-family: 'Sora', sans-serif; min-height: 100dvh; overscroll-behavior: none; user-select: none; }
+
+/* HEADER */
+.header { padding: 18px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
+.header-title { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+.sel-count-badge {
+  font-size: 12px; font-weight: 600; color: var(--gold);
+  background: var(--gold-dim); border: 1px solid rgba(212,168,67,0.3);
+  padding: 4px 12px; border-radius: 20px;
+  opacity: 0; transform: scale(0.85); transition: opacity 0.2s, transform 0.2s;
+}
+.sel-count-badge.visible { opacity: 1; transform: scale(1); }
+
+/* NAV */
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 4px 16px 12px; }
+.nav-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.nav-btn:active { background: var(--card2); transform: scale(0.9); }
+.nav-month { text-align: center; }
+.nav-month-name { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; }
+.nav-month-year { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* WEEKDAYS */
+.weekdays { display: grid; grid-template-columns: repeat(7,1fr); padding: 0 8px 6px; }
+.weekdays div { text-align: center; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; padding: 4px 0; }
+.weekdays div:nth-child(1), .weekdays div:nth-child(7) { color: var(--gold); opacity: 0.45; }
+
+/* GRID */
+.grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; padding: 0 8px 14px; }
+
+.day {
+  aspect-ratio: 1; border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; position: relative;
+  border: 1.5px solid transparent; background: var(--card);
+  transition: transform 0.1s, background 0.12s, border-color 0.12s;
+  gap: 2px; overflow: hidden;
+}
+.day:active { transform: scale(0.82); }
+.day.empty { background: transparent; pointer-events: none; border-color: transparent; }
+
+/* TODAY */
+.day.today { border-color: var(--gold); background: var(--gold-dim); }
+.day.today .day-num { color: var(--gold); font-weight: 700; }
+
+/* BUSY */
+.day.busy { background: var(--red-dim); border-color: rgba(214,48,49,0.45); }
+.day.busy .day-num { color: var(--red-bright); font-weight: 600; }
+.day.busy.today { background: linear-gradient(135deg, var(--red-dim), var(--gold-dim)); border-color: var(--red-bright); }
+
+/* SELECTED (for multi-select) */
+.day.selected {
+  background: var(--sel) !important;
+  border-color: var(--gold) !important;
+  transform: scale(0.93);
+}
+.day.selected .day-num { color: var(--gold) !important; font-weight: 700 !important; }
+.day.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 3px; right: 5px;
+  font-size: 9px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.day-num { font-size: 15px; font-weight: 400; line-height: 1; }
+.day-preview { font-size: 8px; color: var(--red-bright); opacity: 0.85; max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; }
+.day-dots { display: flex; gap: 2px; }
+.day-dots span { width: 3px; height: 3px; border-radius: 50%; background: var(--red-bright); opacity: 0.7; }
+
+/* STATS */
+.stats { display: flex; gap: 7px; padding: 0 8px 14px; }
+.stat-card { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 6px; text-align: center; }
+.stat-n { font-size: 20px; font-weight: 700; color: var(--gold); line-height: 1; }
+.stat-l { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+
+/* FLOATING ACTION BAR — shows when dates selected */
+.action-bar {
+  position: fixed; bottom: -90px; left: 50%; transform: translateX(-50%);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 20px; padding: 10px 14px;
+  display: flex; gap: 8px; align-items: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  transition: bottom 0.3s cubic-bezier(0.34,1.2,0.64,1);
+  z-index: 50; width: calc(100% - 32px); max-width: 420px;
+}
+.action-bar.visible { bottom: 24px; }
+.action-bar-label { font-size: 12px; color: var(--muted); flex: 1; }
+.action-bar-label strong { color: var(--text); }
+.ab-btn {
+  padding: 9px 14px; border-radius: 12px; border: none;
+  font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: transform 0.15s, opacity 0.15s; white-space: nowrap;
+}
+.ab-btn:active { transform: scale(0.92); }
+.ab-busy { background: var(--red-dim); color: var(--red-bright); border: 1px solid rgba(214,48,49,0.4); }
+.ab-free { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,184,148,0.35); }
+.ab-note { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(212,168,67,0.3); }
+.ab-cancel { background: var(--card2); color: var(--muted); border: 1px solid var(--border); padding: 9px 10px; }
+
+/* BOTTOM SHEET */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 200; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.overlay.open { opacity: 1; pointer-events: all; }
+.sheet { width: 100%; background: var(--card); border-radius: 22px 22px 0 0; border-top: 1px solid var(--border); padding: 14px 18px 36px; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1); max-height: 88dvh; overflow-y: auto; }
+.overlay.open .sheet { transform: translateY(0); }
+.sheet-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 18px; }
+
+/* Single-date sheet */
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
+.sheet-date-big { font-size: 20px; font-weight: 700; line-height: 1; }
+.sheet-date-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.toggle-btn { display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--card2); color: var(--text); font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+.toggle-btn:active { transform: scale(0.93); }
+.toggle-btn.is-busy { background: var(--red-dim); border-color: var(--red-bright); color: var(--red-bright); }
+.tbdot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.2s; }
+.toggle-btn.is-busy .tbdot { background: var(--red-bright); }
+
+/* Multi-date sheet */
+.multi-head { margin-bottom: 18px; }
+.multi-title { font-size: 18px; font-weight: 700; }
+.multi-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 90px; overflow-y: auto; }
+.chip { font-size: 11px; font-weight: 600; background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; color: var(--text); }
+.multi-actions { display: flex; gap: 8px; margin-bottom: 18px; }
+.ma-btn { flex: 1; padding: 13px; border-radius: 12px; border: none; font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 0.15s; }
+.ma-btn:active { transform: scale(0.93); }
+.ma-busy { background: var(--red-dim); color: var(--red-bright); border: 1px solid rgba(214,48,49,0.4); }
+.ma-free { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,184,148,0.35); }
+
+.section-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.note-list { margin-bottom: 14px; }
+.note-item { display: flex; align-items: flex-start; gap: 10px; background: var(--card2); border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.note-item-date { font-size: 10px; color: var(--muted); font-weight: 600; flex-shrink: 0; padding-top: 2px; }
+.note-item-text { flex: 1; font-size: 14px; line-height: 1.45; word-break: break-word; }
+.note-item-del { background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; padding: 1px 3px; flex-shrink: 0; transition: color 0.15s; }
+.note-item-del:active { color: var(--red-bright); }
+.empty-note { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 0 14px; }
+
+.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.note-input { flex: 1; background: var(--card2); border: 1.5px solid var(--border); border-radius: 12px; color: var(--text); font-family: 'Sora', sans-serif; font-size: 14px; padding: 11px 13px; outline: none; resize: none; min-height: 44px; max-height: 100px; transition: border-color 0.2s; line-height: 1.4; }
+.note-input:focus { border-color: var(--gold); }
+.note-input::placeholder { color: var(--muted); }
+.save-btn { width: 44px; height: 44px; border-radius: 12px; background: var(--gold); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; transition: transform 0.15s; }
+.save-btn:active { transform: scale(0.88); }
+
+.close-row { margin-top: 14px; }
+.close-full-btn { width: 100%; padding: 13px; border-radius: 12px; background: var(--card2); border: 1px solid var(--border); color: var(--muted); font-family: 'Sora', sans-serif; font-size: 14px; cursor: pointer; }
+.close-full-btn:active { background: var(--border); }
+
+/* MODE indicator top-right */
+.mode-pill {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+  padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--card2); color: var(--muted);
+  transition: all 0.2s; cursor: pointer;
+}
+.mode-pill.multi { background: var(--gold-dim); color: var(--gold); border-color: rgba(212,168,67,0.4); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">Резервации</div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="sel-count-badge" id="selBadge">0 избрани</div>
+    <div class="mode-pill" id="modePill" onclick="toggleMode()">ИЗБЕРИ</div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn" id="prevBtn">‹</button>
+  <div class="nav-month">
+    <div class="nav-month-name" id="monthName"></div>
+    <div class="nav-month-year" id="yearName"></div>
+  </div>
+  <button class="nav-btn" id="nextBtn">›</button>
+</div>
+
+<div class="weekdays">
+  <div>Нд</div><div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div>
+</div>
+<div class="grid" id="grid"></div>
+<div class="stats" id="stats"></div>
+
+<!-- Floating action bar (multi-select) -->
+<div class="action-bar" id="actionBar">
+  <div class="action-bar-label"><strong id="abCount">0</strong> дати</div>
+  <button class="ab-btn ab-busy" onclick="bulkSetBusy(true)">🔴 Заето</button>
+  <button class="ab-btn ab-free" onclick="bulkSetBusy(false)">🟢 Свободно</button>
+  <button class="ab-btn ab-note" onclick="openMultiNoteSheet()">📝 Бележка</button>
+  <button class="ab-btn ab-cancel" onclick="clearSelection()">✕</button>
+</div>
+
+<!-- Bottom Sheet -->
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div id="sheetContent"></div>
+  </div>
+</div>
+
+<script>
+const MONTHS = ['Януари','Февруари','Март','Април','Май','Юни','Юли','Август','Септември','Октомври','Ноември','Декември'];
+const DAYS   = ['Неделя','Понеделник','Вторник','Сряда','Четвъртък','Петък','Събота'];
+
+let yr = new Date().getFullYear();
+let mo = new Date().getMonth();
+let multiMode = false;
+let selected = new Set(); // set of day numbers (as strings)
+let activeDay = null;
+
+function load(y,m){ try{ const r=localStorage.getItem(`cal_${y}_${m}`); return r?JSON.parse(r):{}; }catch{return{};} }
+function save(){ try{ localStorage.setItem(`cal_${yr}_${mo}`, JSON.stringify(data)); }catch{} }
+function getDay(d){ if(!data[d]) data[d]={busy:false,notes:[]}; return data[d]; }
+
+let data = load(yr, mo);
+
+/* ── TOGGLE MULTI MODE ── */
+function toggleMode() {
+  multiMode = !multiMode;
+  if (!multiMode) clearSelection();
+  document.getElementById('modePill').className = 'mode-pill' + (multiMode ? ' multi' : '');
+  document.getElementById('modePill').textContent = multiMode ? 'ОТКАЖИ' : 'ИЗБЕРИ';
+  render();
+}
+
+function clearSelection() {
+  selected.clear();
+  updateActionBar();
+  render();
+}
+
+function updateActionBar() {
+  const bar = document.getElementById('actionBar');
+  const badge = document.getElementById('selBadge');
+  const n = selected.size;
+  if (n > 0 && multiMode) {
+    bar.classList.add('visible');
+    document.getElementById('abCount').textContent = n;
+    badge.textContent = n + ' избрани';
+    badge.classList.add('visible');
+  } else {
+    bar.classList.remove('visible');
+    badge.classList.remove('visible');
+  }
+}
+
+/* ── BULK ACTIONS ── */
+function bulkSetBusy(isBusy) {
+  selected.forEach(d => {
+    const dd = getDay(d);
+    dd.busy = isBusy;
+  });
+  save(); clearSelection(); render();
+}
+
+function bulkAddNote(note) {
+  if (!note) return;
+  selected.forEach(d => {
+    const dd = getDay(d);
+    dd.notes.push(note);
+    dd.busy = true;
+  });
+  save(); clearSelection(); render();
+}
+
+/* ── RENDER ── */
+function render() {
+  document.getElementById('monthName').textContent = MONTHS[mo];
+  document.getElementById('yearName').textContent = yr;
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const firstDow = new Date(yr, mo, 1).getDay();
+  const daysInMo = new Date(yr, mo + 1, 0).getDate();
+  const now = new Date();
+  const isCurMo = now.getFullYear() === yr && now.getMonth() === mo;
+
+  for (let i = 0; i < firstDow; i++) {
+    const e = document.createElement('div'); e.className = 'day empty'; grid.appendChild(e);
+  }
+
+  for (let d = 1; d <= daysInMo; d++) {
+    const dd = getDay(d);
+    const isToday = isCurMo && d === now.getDate();
+    const isSel = selected.has(String(d));
+    const div = document.createElement('div');
+
+    let cls = 'day';
+    if (isSel) cls += ' selected';
+    else {
+      if (isToday) cls += ' today';
+      if (dd.busy) cls += ' busy';
+    }
+    div.className = cls;
+
+    let inner = `<span class="day-num">${d}</span>`;
+    if (!isSel && dd.busy && dd.notes.length > 0) {
+      const first = dd.notes[0].split(/[\s,—–\-]/)[0];
+      if (first) inner += `<span class="day-preview">${escH(first)}</span>`;
+      if (dd.notes.length > 1) {
+        const n = Math.min(dd.notes.length, 3);
+        inner += `<div class="day-dots">${'<span></span>'.repeat(n)}</div>`;
+      }
+    }
+    div.innerHTML = inner;
+
+    div.addEventListener('click', () => handleDayClick(d));
+    grid.appendChild(div);
+  }
+
+  // Stats
+  const busyDays = Object.values(data).filter(v => v.busy).length;
+  const totalNotes = Object.values(data).reduce((s,v) => s + (v.notes||[]).length, 0);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="stat-n">${busyDays}</div><div class="stat-l">Заети</div></div>
+    <div class="stat-card"><div class="stat-n">${daysInMo - busyDays}</div><div class="stat-l">Свободни</div></div>
+    <div class="stat-card"><div class="stat-n">${totalNotes}</div><div class="stat-l">Резервации</div></div>
+  `;
+}
+
+function handleDayClick(d) {
+  if (multiMode) {
+    const key = String(d);
+    if (selected.has(key)) selected.delete(key);
+    else selected.add(key);
+    updateActionBar();
+    render();
+  } else {
+    openSingleSheet(d);
+  }
+}
+
+/* ── SINGLE DATE SHEET ── */
+function openSingleSheet(d) {
+  activeDay = d;
+  const dd = getDay(d);
+  const dateObj = new Date(yr, mo, d);
+  const content = document.getElementById('sheetContent');
+  content.innerHTML = buildSingleSheet(d, dd, dateObj);
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => {
+    const inp = document.getElementById('noteInput');
+    if (inp) inp.focus();
+  }, 350);
+}
+
+function buildSingleSheet(d, dd, dateObj) {
+  const dayName = DAYS[dateObj.getDay()];
+  const notesHtml = dd.notes.length === 0
+    ? '<div class="empty-note">Все още няма бележки</div>'
+    : dd.notes.map((n, i) => `
+      <div class="note-item">
+        <div class="note-item-text">${escH(n)}</div>
+        <button class="note-item-del" onclick="delNote(${i})">✕</button>
+      </div>`).join('');
+
+  return `
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-date-big">${d} ${MONTHS[mo]} ${yr}</div>
+        <div class="sheet-date-sub">${dayName}</div>
+      </div>
+      <button class="toggle-btn ${dd.busy ? 'is-busy' : ''}" id="toggleBtn" onclick="toggleBusy()">
+        <span class="tbdot"></span>
+        <span id="toggleLabel">${dd.busy ? 'Заето ✓' : 'Свободно'}</span>
+      </button>
+    </div>
+    <div class="section-label">Кой е запазил</div>
+    <div class="note-list" id="noteList">${notesHtml}</div>
+    <div class="input-row">
+      <textarea class="note-input" id="noteInput" placeholder="Иванови — 4 човека, Сватба — 20 гости..." rows="1" oninput="autoResize(this)"></textarea>
+      <button class="save-btn" onclick="addNote()">↑</button>
+    </div>
+    <div class="close-row">
+      <button class="close-full-btn" onclick="closeSheet()">Затвори</button>
+    </div>
+  `;
+}
+
+function toggleBusy() {
+  if (activeDay === null) return;
+  const dd = getDay(activeDay);
+  dd.busy = !dd.busy;
+  save();
+  const btn = document.getElementById('toggleBtn');
+  btn.className = 'toggle-btn' + (dd.busy ? ' is-busy' : '');
+  document.getElementById('toggleLabel').textContent = dd.busy ? 'Заето ✓' : 'Свободно';
+  render();
+}
+
+function addNote() {
+  if (activeDay === null) return;
+  const inp = document.getElementById('noteInput');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  const dd = getDay(activeDay);
+  dd.notes.push(txt);
+  if (!dd.busy) { dd.busy = true; }
+  save(); inp.value = ''; inp.style.height = '';
+  // Refresh notes list
+  const notesHtml = dd.notes.map((n, i) => `
+    <div class="note-item">
+      <div class="note-item-text">${escH(n)}</div>
+      <button class="note-item-del" onclick="delNote(${i})">✕</button>
+    </div>`).join('');
+  document.getElementById('noteList').innerHTML = notesHtml;
+  const btn = document.getElementById('toggleBtn');
+  if (btn) { btn.className = 'toggle-btn is-busy'; document.getElementById('toggleLabel').textContent = 'Заето ✓'; }
+  render();
+}
+
+function delNote(idx) {
+  if (activeDay === null) return;
+  const dd = getDay(activeDay);
+  dd.notes.splice(idx, 1);
+  if (dd.notes.length === 0) { dd.busy = false; }
+  save();
+  const notesHtml = dd.notes.length === 0
+    ? '<div class="empty-note">Все още няма бележки</div>'
+    : dd.notes.map((n, i) => `
+      <div class="note-item">
+        <div class="note-item-text">${escH(n)}</div>
+        <button class="note-item-del" onclick="delNote(${i})">✕</button>
+      </div>`).join('');
+  document.getElementById('noteList').innerHTML = notesHtml;
+  const btn = document.getElementById('toggleBtn');
+  if (btn) { btn.className = 'toggle-btn' + (dd.busy ? ' is-busy' : ''); document.getElementById('toggleLabel').textContent = dd.busy ? 'Заето ✓' : 'Свободно'; }
+  render();
+}
+
+/* ── MULTI NOTE SHEET ── */
+function openMultiNoteSheet() {
+  const sorted = [...selected].map(Number).sort((a,b) => a-b);
+  const content = document.getElementById('sheetContent');
+  content.innerHTML = `
+    <div class="multi-head">
+      <div class="multi-title">Добави бележка към ${sorted.length} дати</div>
+      <div class="multi-chips">${sorted.map(d => `<span class="chip">${d} ${MONTHS[mo]}</span>`).join('')}</div>
+    </div>
+    <div class="section-label">Бележка (за кого са запазени)</div>
+    <div class="input-row" style="margin-bottom:14px">
+      <textarea class="note-input" id="multiNoteInput" placeholder="Иванови — 4 човека, Уикенд пакет..." rows="1" oninput="autoResize(this)"></textarea>
+      <button class="save-btn" onclick="submitMultiNote()">↑</button>
+    </div>
+    <div class="close-row">
+      <button class="close-full-btn" onclick="closeSheet()">Затвори</button>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => { const inp = document.getElementById('multiNoteInput'); if(inp) inp.focus(); }, 350);
+}
+
+function submitMultiNote() {
+  const inp = document.getElementById('multiNoteInput');
+  const txt = inp ? inp.value.trim() : '';
+  bulkAddNote(txt);
+  closeSheet();
+}
+
+function closeSheet() {
+  document.getElementById('overlay').classList.remove('open');
+  activeDay = null;
+}
+document.getElementById('overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSheet();
+});
+
+/* ── MONTH NAV ── */
+document.getElementById('prevBtn').addEventListener('click', () => {
+  mo--; if (mo < 0) { mo = 11; yr--; }
+  data = load(yr, mo); clearSelection(); render();
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  mo++; if (mo > 11) { mo = 0; yr++; }
+  data = load(yr, mo); clearSelection(); render();
+});
+
+/* ── UTILS ── */
+function escH(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function autoResize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+document.addEventListener('keydown', e => { if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ const inp=document.getElementById('noteInput')||document.getElementById('multiNoteInput'); if(inp){ if(document.getElementById('multiNoteInput')) submitMultiNote(); else addNote(); } } });
+
+render();
+</script>
+</body>
+</html>
